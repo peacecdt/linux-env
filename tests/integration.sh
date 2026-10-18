@@ -140,4 +140,5 @@ python3 "$repo_root/tests/editor.py"
 python3 "$repo_root/tests/sudo-suggestions.py"
 python3 "$repo_root/tests/diagnostics.py"
 python3 "$repo_root/tests/diagnostics-edit.py"
+python3 "$repo_root/tests/completion.py"
 printf '\nAll Ubuntu integration checks passed.\n'

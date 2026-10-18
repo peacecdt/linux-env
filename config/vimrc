@@ -400,6 +400,102 @@ if executable('rg')
     set grepformat=%f:%l:%c:%m
 endif
 
+" Offer names already present in this buffer without a language server.
+" Do not insert a suggestion until the user explicitly selects one.
+set completeopt=menu,menuone,noselect
+let g:linux_env_auto_complete = get(g:, 'linux_env_auto_complete', 1)
+let g:linux_env_completion_delay = get(g:, 'linux_env_completion_delay', 120)
+let g:linux_env_completion_min_chars = get(g:, 'linux_env_completion_min_chars', 2)
+
+function! s:CompletionContext() abort
+    let l:before = strpart(getline('.'), 0, col('.') - 1)
+    return [line('.'), col('.'), matchstr(l:before, '\k\+$')]
+endfunction
+
+function! s:StopWordCompletion() abort
+    let l:timer = get(b:, 'linux_env_completion_timer', -1)
+    if l:timer != -1
+        call timer_stop(l:timer)
+        let b:linux_env_completion_timer = -1
+    endif
+endfunction
+
+function! s:ShowWordCompletion(buffer, tick, context, timer) abort
+    if getbufvar(a:buffer, 'linux_env_completion_timer', -1) != a:timer
+        return
+    endif
+    call setbufvar(a:buffer, 'linux_env_completion_timer', -1)
+    if bufnr('') != a:buffer || b:changedtick != a:tick
+                \ || s:CompletionContext() !=# a:context || !s:CanCompleteWord()
+        return
+    endif
+    let l:prefix = a:context[2]
+    let l:words = {}
+    " Keep the scan bounded for large generated files; native Ctrl-N is still
+    " available for manual completion, including the usual additional sources.
+    if line2byte(line('$') + 1) > 1024 * 1024
+        return
+    endif
+    for l:word in split(join(getline(1, '$'), "\n"), '\k\@!\_.')
+        if strlen(l:word) > strlen(l:prefix) && stridx(l:word, l:prefix) == 0
+            let l:words[l:word] = 1
+        endif
+    endfor
+    if empty(l:words)
+        return
+    endif
+    let b:linux_env_completion_last = a:context
+    let b:linux_env_completion_last_tick = b:changedtick
+    let l:matches = map(sort(keys(l:words))[:99], '{"word": v:val, "icase": 0}')
+    call complete(col('.') - strlen(l:prefix), l:matches)
+endfunction
+
+function! s:CanCompleteWord() abort
+    if !g:linux_env_auto_complete || &paste || &buftype !=# ''
+                \ || mode(1) !~# '^i' || pumvisible() || !empty(complete_info(['mode']).mode)
+        return 0
+    endif
+    let l:context = s:CompletionContext()
+    if strchars(l:context[2]) < max([1, g:linux_env_completion_min_chars])
+                \ || l:context[2] =~# '^\d'
+                \ || strcharpart(strpart(getline('.'), col('.') - 1), 0, 1) =~# '\k'
+        return 0
+    endif
+    let l:syntax = synIDattr(synID(line('.'), max([1, col('.') - 1]), 1), 'name')
+    return l:syntax !~? 'comment\|string\|character' && !s:PairInString()
+endfunction
+
+function! s:QueueWordCompletion() abort
+    call s:StopWordCompletion()
+    if !s:CanCompleteWord()
+        return
+    endif
+    let l:context = s:CompletionContext()
+    if l:context ==# get(b:, 'linux_env_completion_last', [])
+                \ && b:changedtick == get(b:, 'linux_env_completion_last_tick', -1)
+        return
+    endif
+    let b:linux_env_completion_timer = timer_start(max([0, g:linux_env_completion_delay]),
+                \ function('s:ShowWordCompletion', [bufnr(''), b:changedtick, l:context]))
+endfunction
+
+function! s:WordCompletionDone() abort
+    call s:StopWordCompletion()
+    " Cancelling a menu must not immediately reopen it for the same input.
+    let b:linux_env_completion_last = s:CompletionContext()
+    let b:linux_env_completion_last_tick = b:changedtick
+endfunction
+
+augroup linux_env_word_completion
+    autocmd!
+    autocmd TextChangedI * call <SID>QueueWordCompletion()
+    autocmd CompleteDone * call <SID>WordCompletionDone()
+    autocmd InsertLeave,BufLeave * call <SID>StopWordCompletion()
+augroup END
+
+inoremap <silent><expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
+inoremap <silent><expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
+
 " Native insert-mode pairs for every filetype; no downloaded plugin required.
 let g:linux_env_auto_pairs = get(g:, 'linux_env_auto_pairs', 1)
 let s:pairs = {'(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`'}
@@ -478,15 +574,22 @@ function! s:PairBackspace() abort
 endfunction
 
 function! s:PairEnter() abort
+    let l:cancel = ''
+    if pumvisible()
+        if complete_info(['selected']).selected >= 0
+            return "\<C-y>"
+        endif
+        let l:cancel = "\<C-e>"
+    endif
     let l:previous = strpart(getline('.'), col('.') - 2, 1)
     let l:next = strpart(getline('.'), col('.') - 1, 1)
-    if s:PairsEnabled() && !pumvisible() && !s:PairInString()
+    if s:PairsEnabled() && !s:PairInString()
                 \ && index(['(', '[', '{'], l:previous) >= 0 && s:pairs[l:previous] ==# l:next
         " Use the language's indentation rules; plain text gets one extra level.
         let l:indent = empty(&indentexpr) && !&cindent && !&smartindent ? "\<C-t>" : ''
-        return "\<CR>\<C-o>O" . l:indent
+        return l:cancel . "\<CR>\<C-o>O" . l:indent
     endif
-    return "\<CR>"
+    return l:cancel . "\<CR>"
 endfunction
 
 " Evaluate after pending text is inserted, including fast typing and macros.

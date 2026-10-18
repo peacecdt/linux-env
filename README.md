@@ -727,6 +727,37 @@ ctags -R --exclude=build --exclude=.venv .
 
 Python 的 `:make` 每次执行时重新选择解释器：从当前文件所在目录向上寻找最近的 `.venv/bin/python`，然后尝试 `$VIRTUAL_ENV/bin/python`，最后使用 `python3`。语法编译可能生成 `__pycache__`，但不会执行这个 Python 文件。
 
+### 9.8 已出现名称的自动补全
+
+在 INSERT 模式中输入至少 **2 个名称字符**，暂停约 **0.12 秒**后，会从当前文件中已经出现的词提供候选。例如前面声明了 `namespace veryLongName {}`，后面输入 `ver`，就可以看到 `veryLongName`。变量名、函数名和其他已出现的标识符也适用，不必只限于 C/C++ 文件。
+
+菜单默认不选中任何项，也不自动把候选写进代码。标识符按大小写匹配；已删除的名字不会从旧缓存中继续提供。
+
+| 操作 | 行为 |
+| --- | --- |
+| 菜单出现后按 Tab | 选择下一项，并显示完整名称 |
+| Shift+Tab | 选择上一项 |
+| 已选中候选时按 Enter | 确认名称，不额外换行 |
+| 没有选中候选时按 Enter | 保留自己输入的内容，正常换行 |
+| `Ctrl+e` | 取消候选，保留自己输入的前缀 |
+| 没有菜单时按 Tab | 保持原有 Tab / 缩进行为 |
+| `Ctrl+n` / `Ctrl+p` | 仍可使用 Vim 原生的手动补全和候选切换 |
+
+在字符串、注释内部、粘贴模式或标识符中间编辑时，不主动打开自动候选。为了避免扫描大型生成文件时卡顿，超过 1 MiB 的缓冲区跳过自动扫描，仍可以使用手动补全。
+
+这是当前文件的词补全，不做变量作用域、类型和成员访问分析，不会因此自动列出外部库的全部方法；它与括号配对、ALE 错误诊断、clangd 的语义补全分别处理。
+
+需要自定义时，在 `~/.vimrc.local` 中按需设置：
+
+```vim
+" 关闭自动名称菜单，保留手动 Ctrl+n
+" let g:linux_env_auto_complete = 0
+
+" 改为输入3个字符后触发，暂停200毫秒显示
+" let g:linux_env_completion_min_chars = 3
+" let g:linux_env_completion_delay = 200
+```
+
 <a id="diagnostics"></a>
 ## 10. Vim：错误和警告诊断
 
@@ -742,7 +773,7 @@ ALE 由 Ubuntu 的 `vim-ale` 软件包提供。默认开启的诊断语言只有
 
 Python 默认主要检查语法、未定义名字和部分易错表达式，不把行长、普通空白风格等所有提示都开启。Flake8 使用系统安装版本进行静态检查，不导入和运行你的项目。
 
-虽然安装了 `clangd`、`clang-format` 和 `clang-tidy`，当前 Vim 默认没有接入 clangd 的 LSP 智能补全，也不在保存时自动格式化或自动修复代码。括号配对与语义补全是不同的功能。
+虽然安装了 `clangd`、`clang-format` 和 `clang-tidy`，当前 Vim 默认没有接入 clangd 的 LSP 智能补全，也不在保存时自动格式化或自动修复代码。第 9.8 节的名称菜单使用当前文件词补全，括号配对与语义补全也是不同的功能。
 
 ### 10.2 怎样看提示
 
@@ -1802,6 +1833,7 @@ linux-env/
 | [`tests/sudo-suggestions.py`](tests/sudo-suggestions.py) | sudo 参数、Tab、灰字接受和提交后真实终端显示 |
 | [`tests/diagnostics.py`](tests/diagnostics.py) | Clang / Flake8 实际诊断、标记、保存和退出 INSERT 更新、未保存修正及编译数据库 |
 | [`tests/diagnostics-edit.py`](tests/diagnostics-edit.py) | 实际 INSERT 输入、其他行编辑时保留错误、行号移动、同一行修正、底部说明和旧检查取消 |
+| [`tests/completion.py`](tests/completion.py) | 实际 C/C++/Python 名称菜单、Tab/Shift+Tab 选择、Enter 确认或换行、取消和括号配对 |
 
 完整安装测试分别在 Ubuntu 22.04、24.04、26.04 容器内执行。默认只修改 README 也可能触发 GitHub 工作流；是否通过应查看具体提交的结果，不把以前的一次成功当成所有以后版本的保证。
 
