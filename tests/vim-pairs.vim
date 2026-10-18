@@ -47,6 +47,14 @@ call s:Input("中文\<BS>", ['中'], 'python')
 call s:Input("\<C-v>(", ['('], 'c')
 call s:Input('if (a < b)', ['if (a < b)'], 'c')
 
+for s:ft in ['c', 'cpp']
+    call s:Input("// note\<CR>int n = 0;", ['// note', 'int n = 0;'], s:ft)
+    call s:Input("/// note\<CR>int n = 0;", ['/// note', 'int n = 0;'], s:ft)
+    call s:Input("int main() {\<CR>int n = 2; // note\<CR>return n;",
+                \ ['int main() {', '    int n = 2; // note', '    return n;', '}'], s:ft)
+    call s:Input("/* note\<CR>more", ['/* note', ' * more'], s:ft)
+endfor
+
 set paste
 call s:Input('print("literal")', ['print("literal")'], 'python')
 set nopaste

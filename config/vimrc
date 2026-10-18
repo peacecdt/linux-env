@@ -569,6 +569,8 @@ endfunction
 augroup linux_env
     autocmd!
     autocmd BufNewFile *.c,*.cpp,*.cc,*.cxx,*.py call <SID>NewSourceHeader()
+    " Keep // comments on their own line, without disabling /* */ continuation.
+    autocmd FileType c,cpp setlocal comments-=:/// comments-=:// comments+=f:/// comments+=f://
     autocmd FileType c,cpp setlocal suffixesadd=.h,.hpp,.hh,.hxx
     autocmd FileType c,cpp setlocal makeprg=cmake\ --build\ build
     autocmd FileType python call <SID>PythonMake()
