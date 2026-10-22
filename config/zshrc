@@ -71,6 +71,36 @@ alias ll='ls -alF --color=auto'
 alias la='ls -A --color=auto'
 alias ..='cd ..'
 
+# Learning convenience: keep libm after source/object files for link ordering.
+# A shell function leaves the system compiler and build tools unchanged.
+gcc() {
+    emulate -L zsh
+    local argument has_input=0
+    if [[ ${LINUX_ENV_GCC_AUTO_MATH:-1} == 0 ]] || (( $# == 0 )) ||
+        { (( $# == 1 )) && [[ $1 == -v ]]; }; then
+        command gcc "$@"
+        return $?
+    fi
+    for argument in "$@"; do
+        case "$argument" in
+            -c|--compile|-S|--assemble|-E|--preprocess|-M|-MM|-fsyntax-only|-r|\
+            -nostdlib|--no-standard-libraries|-nodefaultlibs|-nolibc|-ffreestanding|\
+            --version|--help|--help=*|--target-help|-dumpmachine|-dumpversion|-dumpfullversion|-dumpspecs|-print*)
+                command gcc "$@"
+                return $?
+                ;;
+            -|@*|-l?*|-Wl,*) has_input=1 ;;
+            -*) ;;
+            *) has_input=1 ;;
+        esac
+    done
+    if (( has_input )); then
+        command gcc "$@" -lm
+    else
+        command gcc "$@"
+    fi
+}
+
 # A branch name is data. Escape prompt formatting and remove control characters.
 # Detached HEADs display the short commit; no worktree scan on every prompt.
 typeset -g _linux_env_git_prompt=''

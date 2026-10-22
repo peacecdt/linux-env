@@ -136,6 +136,7 @@ bash "$repo_root/tests/bootstrap.sh"
 
 note 'Exercise identity setup with a real controlling terminal and private password entry'
 python3 "$repo_root/tests/identity.py"
+python3 "$repo_root/tests/gcc-math.py"
 python3 "$repo_root/tests/editor.py"
 python3 "$repo_root/tests/sudo-suggestions.py"
 python3 "$repo_root/tests/diagnostics.py"

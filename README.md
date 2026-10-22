@@ -296,13 +296,14 @@ linux-env-doctor
 
 1. 检查开发命令和 ALE 插件是否存在。
 2. 在临时目录中编译并运行一个很小的 C 程序。
-3. 编译并运行一个很小的 C++ 程序。
-4. 创建临时 Python 虚拟环境，检查 `ssl`、`sqlite3`、`venv` 和 pip。
-5. 检查 Zsh 语法和实际启动。
-6. 检查 Vim 配置及 ALE 是否加载。
-7. 退出时删除该临时自检目录。
+3. 在该账号的交互式 Zsh 中编译并运行使用数学函数的小程序，验证 `gcc` 默认自动链接数学库的配置；如果个人配置已关闭此功能，则显式使用 `-lm` 验证常规编译。
+4. 编译并运行一个很小的 C++ 程序。
+5. 创建临时 Python 虚拟环境，检查 `ssl`、`sqlite3`、`venv` 和 pip。
+6. 检查 Zsh 语法和实际启动。
+7. 检查 Vim 配置及 ALE 是否加载。
+8. 退出时删除该临时自检目录。
 
-成功时会看到 `C OK`、`C++ OK`、`Python venv OK`、`Zsh OK` 和最后的 `[OK]`。
+成功时会看到 `C OK`、`C++ OK`、`Python venv OK`、`Zsh OK`、`C math OK` 和最后的 `[OK]`。
 
 自检不会运行你正在学习的项目。它验证基础环境可用，不能代替某个项目自己的编译、测试，也不等于完整的仓库 CI。
 
@@ -1044,6 +1045,76 @@ gcc -std=c17 -Wall -Wextra -g hello.c -o hello && ./hello
 ```bash
 gcc -std=c17 -Wall -Wextra -fsyntax-only hello.c
 ```
+
+#### 12.1.1 数学函数：直接编译并运行 `a.out`
+
+在安装本配置后的**交互式 Zsh** 中，可以直接执行：
+
+```bash
+gcc 8.digit.c && ./a.out
+```
+
+如果 `8.digit.c` 使用了 `pow`、`sqrt`、`sin` 等数学函数，配置会在需要链接的 `gcc` 命令末尾自动补上 `-lm`。上面的命令相当于调用系统 GCC 执行：
+
+```bash
+/usr/bin/gcc 8.digit.c -lm && ./a.out
+```
+
+这个设置只省略数学库的链接参数，输出名称仍遵循 GCC 的规则。没有指定 `-o` 时生成 `a.out`，也可以继续自行指定名称：
+
+```bash
+gcc 8.digit.c -o 8.digit && ./8.digit
+gcc -std=c17 -Wall -Wextra -g 8.digit.c -o 8.digit && ./8.digit
+```
+
+`#include <math.h>` 与 `-lm` 解决的是不同阶段的问题：
+
+| 内容 | 作用 |
+| --- | --- |
+| `#include <math.h>` | 给编译器提供数学函数的声明，源代码中仍需要包含它 |
+| `-lm` | 在链接阶段加入系统数学库，找到 `pow` 等函数的实现 |
+| `undefined reference to 'pow'` | 常见原因是链接阶段没有加入数学库，不是缺少编辑器插件 |
+
+某些简单常量表达式可能被编译器直接计算，因而暂时没有暴露缺少 `-lm` 的问题。不能仅凭一条 `gcc 文件.c` 成功，就确定其他人的系统、Shell 或编译选项与本机完全相同。本仓库用明确的 Zsh 配置实现这种课堂学习体验。
+
+**适用范围与例外：**
+
+- 只有加载本仓库配置的交互式 Zsh 中，直接输入的 `gcc` 才使用该函数；没有替换 `/usr/bin/gcc`。
+- `-c`、`-S`、`-E`、`-M`、`-MM`、`-fsyntax-only` 等不执行常规链接的命令，以及 `--version` 等查询命令，保持原参数，不追加 `-lm`。
+- 使用 `-nostdlib`（或 `--no-standard-libraries`）、`-nodefaultlibs`、`-nolibc`、`-ffreestanding`，以及生成可重定位目标的 `-r` 时，也不自动加入数学库。
+- 该设置不会替代 `g++`、`clang`、`clang++` 的配置，也不会改变 Vim 的语法检查。
+- Make、CMake、Shell 脚本、非交互式 Shell 以及直接调用 `/usr/bin/gcc` 时，仍应按项目需求显式声明数学库。
+
+函数只判断普通命令行参数，不展开 `@响应文件`，也不完整解析所有进阶链接选项。项目构建、交叉编译或自定义链接规则应绕过此函数，明确配置实际需要的库。
+
+例如在 Makefile 中加入：
+
+```make
+LDLIBS += -lm
+```
+
+在 CMake 中，对实际使用数学函数的目标加入：
+
+```cmake
+target_link_libraries(your_target PRIVATE m)
+```
+
+需要临时绕过学习配置，可以使用 `command` 或系统编译器的绝对路径；此时自己把 `-lm` 放在源文件或目标文件之后：
+
+```bash
+command gcc 8.digit.c -o 8.digit -lm
+/usr/bin/gcc 8.digit.c -o 8.digit -lm
+```
+
+需要长期关闭，在 `~/.zshrc.local` 中加入下面一行，再执行 `exec zsh -l`：
+
+```bash
+LINUX_ENV_GCC_AUTO_MATH=0
+```
+
+这里无需 `export`，函数直接读取当前 Shell 的变量。关闭后恢复系统 GCC 的链接行为，需要数学库时自行加上 `-lm`。删除这一行并重新登录 Zsh，可以恢复默认设置。
+
+不要用 `alias gcc='gcc -lm'` 代替本配置：它会把库参数放在输入文件之前，链接器按顺序处理库时仍可能出现 `undefined reference`。本配置使用函数，把自动添加的 `-lm` 放到命令参数末尾。
 
 ### 12.2 单个 C++ 文件
 
@@ -1834,6 +1905,7 @@ linux-env/
 | [`tests/diagnostics.py`](tests/diagnostics.py) | Clang / Flake8 实际诊断、标记、保存和退出 INSERT 更新、未保存修正及编译数据库 |
 | [`tests/diagnostics-edit.py`](tests/diagnostics-edit.py) | 实际 INSERT 输入、其他行编辑时保留错误、行号移动、同一行修正、底部说明和旧检查取消 |
 | [`tests/completion.py`](tests/completion.py) | 实际 C/C++/Python 名称菜单、Tab/Shift+Tab 选择、Enter 确认或换行、取消和括号配对 |
+| [`tests/gcc-math.py`](tests/gcc-math.py) | 交互式 Zsh 的 GCC 数学库自动链接、实际数学程序、参数透传、关闭开关及原始 GCC 行为 |
 
 完整安装测试分别在 Ubuntu 22.04、24.04、26.04 容器内执行。默认只修改 README 也可能触发 GitHub 工作流；是否通过应查看具体提交的结果，不把以前的一次成功当成所有以后版本的保证。
 

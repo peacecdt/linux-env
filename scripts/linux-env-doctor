@@ -23,6 +23,17 @@ done
 printf '#include <stdio.h>\nint main(void) { puts("C OK"); return 0; }\n' > "$WORK_DIR/main.c"
 gcc -std=c17 -Wall -Wextra -Werror "$WORK_DIR/main.c" -o "$WORK_DIR/hello-c"
 "$WORK_DIR/hello-c"
+printf '#include <math.h>\n#include <stdio.h>\nint main(void) { volatile double x = 2.0; if (pow(x, 5.0) != 32.0) return 1; puts("C math OK"); return 0; }\n' > "$WORK_DIR/math.c"
+# An explicit personal opt-out still supports normal, explicit -lm compilation.
+# shellcheck disable=SC2016 # These variables belong to the child Zsh.
+zsh -ic '
+  cd -- "$1" || exit
+  if [[ ${LINUX_ENV_GCC_AUTO_MATH:-1} == 0 ]]; then
+    gcc math.c -lm
+  else
+    gcc math.c
+  fi && ./a.out
+' zsh "$WORK_DIR"
 printf '#include <iostream>\nint main() { std::cout << "C++ OK\\n"; }\n' > "$WORK_DIR/main.cpp"
 g++ -std=c++17 -Wall -Wextra -Werror "$WORK_DIR/main.cpp" -o "$WORK_DIR/hello-cpp"
 "$WORK_DIR/hello-cpp"
