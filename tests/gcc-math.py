@@ -158,6 +158,8 @@ def test_arguments(root):
         ("verbose compilation", ["-v", "8.digit.c"], True, "gcc"),
         ("dumpbase compilation", ["-dumpbase", "foo", "8.digit.c"], True, "gcc"),
         ("stdin compilation", ["-x", "c", "-"], True, "gcc"),
+        ("library link input", ["-lexample"], True, "gcc"),
+        ("linker input options", ["-Wl,--whole-archive,example.a,--no-whole-archive"], True, "gcc"),
         ("compile dependency flags", ["-MMD", "-MP", "8.digit.c"], True, "gcc"),
         ("response file", ["@arguments with spaces"], True, "gcc"),
         ("no arguments", [], False, "gcc"),
@@ -167,7 +169,8 @@ def test_arguments(root):
         ("long verbose query", ["--verbose"], False, "gcc"),
     ]
     skipped = ["-c", "--compile", "-S", "--assemble", "-E", "--preprocess", "-M", "-MM",
-               "-fsyntax-only", "-r", "-nostdlib", "-nodefaultlibs", "-nolibc", "-ffreestanding"]
+               "-fsyntax-only", "-r", "-nostdlib", "--no-standard-libraries",
+               "-nodefaultlibs", "-nolibc", "-ffreestanding"]
     for flag in skipped:
         cases.append(("passthrough " + flag, ["-Wall", "8.digit.c", flag,
                                              "-o", "output with spaces"], False, "gcc"))
